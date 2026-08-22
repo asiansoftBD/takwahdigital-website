@@ -26,15 +26,15 @@ export default async function NewProjectPage() {
           </p>
 
           <h1 className="mt-2 text-3xl font-bold text-[#0D1A63]">
-            Add New Project
+            New Portfolio Project
           </h1>
 
           <p className="mt-2 text-slate-600">
-            Create a new portfolio project. We will connect the form to D1 in
-            the next step.
+            Create a new project for your portfolio.
           </p>
         </div>
-       <NewProjectForm />
+
+        <NewProjectForm />
       </div>
     </main>
   );

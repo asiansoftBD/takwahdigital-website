@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type UploadResponse = {
   error?: string;
@@ -17,7 +18,16 @@ type UploadResponse = {
   };
 };
 
+type ProjectResponse = {
+  error?: string;
+  success?: boolean;
+  projectId?: number;
+  slug?: string;
+};
+
 export default function NewProjectForm() {
+  const router = useRouter();
+
   const [files, setFiles] = useState<File[]>([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -29,12 +39,21 @@ export default function NewProjectForm() {
     setError("");
     setMessage("");
 
-    const selectedFiles = Array.from(event.target.files ?? []);
+    const selectedFiles = Array.from(
+      event.target.files ?? []
+    );
+
     setFiles(selectedFiles);
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
+
+    if (saving) {
+      return;
+    }
 
     setError("");
     setMessage("");
@@ -44,71 +63,189 @@ export default function NewProjectForm() {
       const form = event.currentTarget;
       const formData = new FormData(form);
 
+      const title = String(
+        formData.get("title") ?? ""
+      ).trim();
+
+      const slug = String(
+        formData.get("slug") ?? ""
+      ).trim();
+
+      if (!title) {
+        throw new Error("Project title is required.");
+      }
+
+      if (!slug) {
+        throw new Error("Project slug is required.");
+      }
+
       const projectPayload = {
-        title: String(formData.get("title") ?? ""),
-        slug: String(formData.get("slug") ?? ""),
-        category: String(formData.get("category") ?? "") || null,
-        client_name: String(formData.get("client_name") ?? "") || null,
+        title,
+        slug,
+
+        category:
+          String(formData.get("category") ?? "").trim() ||
+          null,
+
+        client_name:
+          String(formData.get("client_name") ?? "").trim() ||
+          null,
+
         short_description:
-          String(formData.get("short_description") ?? "") || null,
+          String(
+            formData.get("short_description") ?? ""
+          ).trim() || null,
+
         description:
-          String(formData.get("description") ?? "") || null,
-        challenge: String(formData.get("challenge") ?? "") || null,
-        strategy: String(formData.get("strategy") ?? "") || null,
-        execution: String(formData.get("execution") ?? "") || null,
-        results: String(formData.get("results") ?? "") || null,
-        project_url: String(formData.get("project_url") ?? "") || null,
-        project_date: String(formData.get("project_date") ?? "") || null,
-        is_featured: formData.get("is_featured") === "on",
-        is_published: formData.get("is_published") === "on",
-        seo_title: String(formData.get("seo_title") ?? "") || null,
+          String(
+            formData.get("description") ?? ""
+          ).trim() || null,
+
+        challenge:
+          String(
+            formData.get("challenge") ?? ""
+          ).trim() || null,
+
+        strategy:
+          String(
+            formData.get("strategy") ?? ""
+          ).trim() || null,
+
+        execution:
+          String(
+            formData.get("execution") ?? ""
+          ).trim() || null,
+
+        results:
+          String(
+            formData.get("results") ?? ""
+          ).trim() || null,
+
+        project_url:
+          String(
+            formData.get("project_url") ?? ""
+          ).trim() || null,
+
+        project_date:
+          String(
+            formData.get("project_date") ?? ""
+          ).trim() || null,
+
+        is_featured:
+          formData.get("is_featured") === "on",
+
+        is_published:
+          formData.get("is_published") === "on",
+
+        seo_title:
+          String(
+            formData.get("seo_title") ?? ""
+          ).trim() || null,
+
         seo_description:
-          String(formData.get("seo_description") ?? "") || null,
+          String(
+            formData.get("seo_description") ?? ""
+          ).trim() || null,
       };
 
-      const projectResponse = await fetch("/api/admin/projects", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(projectPayload),
-      });
+      /*
+       * STEP 1
+       * Create the project in D1.
+       */
 
-      const projectData = (await projectResponse.json()) as {
-        error?: string;
-        success?: boolean;
-        projectId?: number;
-        slug?: string;
-      };
+      const projectResponse = await fetch(
+        "/api/admin/projects",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify(projectPayload),
+        }
+      );
 
-      if (!projectResponse.ok || !projectData.projectId) {
+      let projectData: ProjectResponse = {};
+
+      try {
+        projectData =
+          (await projectResponse.json()) as ProjectResponse;
+      } catch {
         throw new Error(
-          projectData.error || "Unable to create project."
+          `Server returned an invalid response (${projectResponse.status}).`
+        );
+      }
+
+      if (
+        !projectResponse.ok ||
+        !projectData.success ||
+        !projectData.projectId
+      ) {
+        throw new Error(
+          projectData.error ||
+            `Unable to create project. Server returned ${projectResponse.status}.`
         );
       }
 
       const projectId = projectData.projectId;
 
-      for (let index = 0; index < files.length; index += 1) {
+      /*
+       * STEP 2
+       * Upload selected media files.
+       */
+
+      for (
+        let index = 0;
+        index < files.length;
+        index += 1
+      ) {
         const file = files[index];
 
+        if (file.size > 25 * 1024 * 1024) {
+          throw new Error(
+            `${file.name} is larger than the 25 MB limit.`
+          );
+        }
+
         const uploadFormData = new FormData();
+
         uploadFormData.append("file", file);
 
-        const uploadResponse = await fetch("/api/admin/assets", {
-          method: "POST",
-          body: uploadFormData,
-        });
+        const uploadResponse = await fetch(
+          "/api/admin/assets",
+          {
+            method: "POST",
+            credentials: "include",
+            body: uploadFormData,
+          }
+        );
 
-        const uploadData =
-          (await uploadResponse.json()) as UploadResponse;
+        let uploadData: UploadResponse = {};
 
-        if (!uploadResponse.ok || !uploadData.media?.id) {
+        try {
+          uploadData =
+            (await uploadResponse.json()) as UploadResponse;
+        } catch {
+          throw new Error(
+            `Unable to read the upload response for ${file.name}.`
+          );
+        }
+
+        if (
+          !uploadResponse.ok ||
+          !uploadData.success ||
+          !uploadData.media?.id
+        ) {
           throw new Error(
             uploadData.error ||
               `Unable to upload ${file.name}.`
           );
         }
+
+        /*
+         * STEP 3
+         * Attach uploaded media to the project.
+         */
 
         const attachResponse = await fetch(
           "/api/admin/projects/media",
@@ -117,6 +254,7 @@ export default function NewProjectForm() {
             headers: {
               "Content-Type": "application/json",
             },
+            credentials: "include",
             body: JSON.stringify({
               project_id: projectId,
               media_id: uploadData.media.id,
@@ -125,10 +263,22 @@ export default function NewProjectForm() {
           }
         );
 
-        const attachData = (await attachResponse.json()) as {
+        let attachData: {
           error?: string;
           success?: boolean;
-        };
+        } = {};
+
+        try {
+          attachData =
+            (await attachResponse.json()) as {
+              error?: string;
+              success?: boolean;
+            };
+        } catch {
+          throw new Error(
+            `Unable to read the media attachment response for ${file.name}.`
+          );
+        }
 
         if (!attachResponse.ok) {
           throw new Error(
@@ -138,22 +288,48 @@ export default function NewProjectForm() {
         }
       }
 
-      setMessage("Project created successfully.");
+      /*
+       * SUCCESS
+       */
+
+      setMessage(
+        "Project created successfully. Redirecting..."
+      );
+
       setFiles([]);
-      form.reset();
+
+      /*
+       * Go back to the Projects list.
+       */
+      router.push("/admin/projects");
+
+      /*
+       * Refresh server-side project data.
+       */
+      router.refresh();
     } catch (submitError) {
+      console.error(
+        "Create project error:",
+        submitError
+      );
+
       setError(
         submitError instanceof Error
           ? submitError.message
           : "Unable to create project."
       );
-    } finally {
+
       setSaving(false);
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-8"
+    >
+      {/* BASIC INFORMATION */}
+
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
         <h2 className="text-xl font-bold text-[#0D1A63]">
           Basic Information
@@ -174,7 +350,7 @@ export default function NewProjectForm() {
               type="text"
               required
               className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-[#2845D6] focus:ring-2 focus:ring-[#2845D6]/20"
-              placeholder="e.g. AssMa Shoe Store HTML5 Campaign"
+              placeholder="e.g. Shishir Honda Social Media Campaign"
             />
           </div>
 
@@ -192,7 +368,7 @@ export default function NewProjectForm() {
               type="text"
               required
               className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-[#2845D6] focus:ring-2 focus:ring-[#2845D6]/20"
-              placeholder="assma-shoe-store"
+              placeholder="shishir-honda"
             />
           </div>
 
@@ -248,6 +424,8 @@ export default function NewProjectForm() {
         </div>
       </section>
 
+      {/* PROJECT CONTENT */}
+
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
         <h2 className="text-xl font-bold text-[#0D1A63]">
           Project Content
@@ -290,6 +468,8 @@ export default function NewProjectForm() {
         </div>
       </section>
 
+      {/* CASE STUDY */}
+
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
         <h2 className="text-xl font-bold text-[#0D1A63]">
           Case Study Details
@@ -297,30 +477,50 @@ export default function NewProjectForm() {
 
         <div className="mt-6 grid gap-6">
           {[
-            ["challenge", "Challenge", "What problem did the project address?"],
-            ["strategy", "Strategy", "What strategy was used?"],
-            ["execution", "Execution", "How was the strategy executed?"],
-            ["results", "Results", "What results or outcomes were achieved?"],
-          ].map(([name, label, placeholder]) => (
-            <div key={name}>
-              <label
-                htmlFor={name}
-                className="block text-sm font-semibold text-slate-700"
-              >
-                {label}
-              </label>
+            [
+              "challenge",
+              "Challenge",
+              "What problem did the project address?",
+            ],
+            [
+              "strategy",
+              "Strategy",
+              "What strategy was used?",
+            ],
+            [
+              "execution",
+              "Execution",
+              "How was the strategy executed?",
+            ],
+            [
+              "results",
+              "Results",
+              "What results or outcomes were achieved?",
+            ],
+          ].map(
+            ([name, label, placeholder]) => (
+              <div key={name}>
+                <label
+                  htmlFor={name}
+                  className="block text-sm font-semibold text-slate-700"
+                >
+                  {label}
+                </label>
 
-              <textarea
-                id={name}
-                name={name}
-                rows={4}
-                className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-[#2845D6] focus:ring-2 focus:ring-[#2845D6]/20"
-                placeholder={placeholder}
-              />
-            </div>
-          ))}
+                <textarea
+                  id={name}
+                  name={name}
+                  rows={4}
+                  className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-[#2845D6] focus:ring-2 focus:ring-[#2845D6]/20"
+                  placeholder={placeholder}
+                />
+              </div>
+            )
+          )}
         </div>
       </section>
+
+      {/* MEDIA */}
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
         <h2 className="text-xl font-bold text-[#0D1A63]">
@@ -374,6 +574,8 @@ export default function NewProjectForm() {
           </div>
         )}
       </section>
+
+      {/* PUBLISHING & SEO */}
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
         <h2 className="text-xl font-bold text-[#0D1A63]">
@@ -455,17 +657,21 @@ export default function NewProjectForm() {
         </div>
       </section>
 
+      {/* ERROR / SUCCESS */}
+
       {error && (
-        <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
-          {error}
-        </p>
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <strong>Error:</strong> {error}
+        </div>
       )}
 
       {message && (
-        <p className="rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700">
+        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
           {message}
-        </p>
+        </div>
       )}
+
+      {/* BUTTONS */}
 
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
         <Link
@@ -478,9 +684,11 @@ export default function NewProjectForm() {
         <button
           type="submit"
           disabled={saving}
-          className="inline-flex items-center justify-center rounded-lg bg-[#2845D6] px-6 py-3 font-semibold text-white hover:bg-[#1A2CA3] disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex min-w-[160px] items-center justify-center rounded-lg bg-[#2845D6] px-6 py-3 font-semibold text-white transition hover:bg-[#1A2CA3] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {saving ? "Saving Project..." : "Save Project"}
+          {saving
+            ? "Saving Project..."
+            : "Save Project"}
         </button>
       </div>
     </form>
