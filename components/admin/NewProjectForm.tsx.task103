@@ -1,0 +1,153 @@
+"use client";
+
+import { FormEvent, useState } from "react";
+
+export default function NewProjectForm() {
+  const [files, setFiles] = useState<File[]>([]);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [uploading, setUploading] = useState(false);
+
+  function handleFileChange(
+    event: React.ChangeEvent<HTMLInputElement>
+  ) {
+    setError("");
+    setMessage("");
+
+    const selectedFiles = Array.from(event.target.files ?? []);
+    setFiles(selectedFiles);
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    setError("");
+    setMessage("");
+
+    if (files.length === 0) {
+      setError("Please select at least one project file.");
+      return;
+    }
+
+    setUploading(true);
+
+    try {
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const response = await fetch("/api/admin/assets", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = (await response.json()) as {
+          error?: string;
+          success?: boolean;
+          media?: {
+            id: number;
+            fileName: string;
+            storageKey: string;
+            fileUrl: string;
+            fileType: string;
+            mimeType: string;
+            fileSize: number;
+          };
+        };
+
+        if (!response.ok) {
+          throw new Error(
+            data.error || `Unable to upload ${file.name}.`
+          );
+        }
+      }
+
+      setMessage("Project media uploaded successfully.");
+      setFiles([]);
+    } catch (uploadError) {
+      setError(
+        uploadError instanceof Error
+          ? uploadError.message
+          : "Unable to upload project media."
+      );
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-8">
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        <h2 className="text-xl font-bold text-[#0D1A63]">
+          Project Media
+        </h2>
+
+        <p className="mt-2 text-sm text-slate-500">
+          Upload images, videos, or PDF files related to this project.
+        </p>
+
+        <div className="mt-6">
+          <label
+            htmlFor="project-media"
+            className="block text-sm font-semibold text-slate-700"
+          >
+            Project Files
+          </label>
+
+          <input
+            id="project-media"
+            type="file"
+            multiple
+            accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml,video/mp4,video/webm,application/pdf"
+            onChange={handleFileChange}
+            className="mt-2 block w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm text-slate-700 file:mr-4 file:rounded-md file:border-0 file:bg-[#2845D6] file:px-4 file:py-2 file:font-semibold file:text-white hover:file:bg-[#1A2CA3]"
+          />
+
+          <p className="mt-2 text-xs text-slate-500">
+            Allowed: JPG, PNG, WEBP, GIF, SVG, MP4, WEBM, and PDF.
+            Maximum 25 MB per file.
+          </p>
+        </div>
+
+        {files.length > 0 && (
+          <div className="mt-6 rounded-lg bg-slate-50 p-4">
+            <p className="text-sm font-semibold text-slate-700">
+              Selected files
+            </p>
+
+            <ul className="mt-3 space-y-2">
+              {files.map((file) => (
+                <li
+                  key={`${file.name}-${file.size}-${file.lastModified}`}
+                  className="text-sm text-slate-600"
+                >
+                  {file.name}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {error && (
+          <p className="mt-5 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
+            {error}
+          </p>
+        )}
+
+        {message && (
+          <p className="mt-5 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700">
+            {message}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={uploading || files.length === 0}
+          className="mt-6 inline-flex items-center justify-center rounded-lg bg-[#2845D6] px-6 py-3 font-semibold text-white hover:bg-[#1A2CA3] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {uploading ? "Uploading..." : "Upload Project Media"}
+        </button>
+      </section>
+    </form>
+  );
+}

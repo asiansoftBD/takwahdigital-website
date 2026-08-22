@@ -1,0 +1,145 @@
+import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { getCurrentAdmin } from "@/lib/admin-auth";
+
+function createSlug(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+export async function POST(request: Request) {
+  try {
+    const admin = await getCurrentAdmin();
+
+    if (!admin) {
+      return Response.json(
+        { error: "Unauthorized." },
+        { status: 401 }
+      );
+    }
+
+    const body = (await request.json()) as {
+  title?: string;
+  slug?: string;
+  category?: string | null;
+  client_name?: string | null;
+  short_description?: string | null;
+  description?: string | null;
+  challenge?: string | null;
+  strategy?: string | null;
+  execution?: string | null;
+  results?: string | null;
+  project_url?: string | null;
+  project_date?: string | null;
+  is_featured?: boolean;
+  is_published?: boolean;
+  seo_title?: string | null;
+  seo_description?: string | null;
+};
+
+    const title = String(body.title ?? "").trim();
+
+    if (!title) {
+      return Response.json(
+        { error: "Project title is required." },
+        { status: 400 }
+      );
+    }
+
+    const slug = createSlug(
+      String(body.slug ?? title)
+    );
+
+    if (!slug) {
+      return Response.json(
+        { error: "A valid project slug is required." },
+        { status: 400 }
+      );
+    }
+
+    const { env } = await getCloudflareContext({
+      async: true,
+    });
+
+    const existingProject = await env.DB
+      .prepare(
+        `
+        SELECT id
+        FROM projects
+        WHERE slug = ?
+        LIMIT 1
+        `
+      )
+      .bind(slug)
+      .first<{ id: number }>();
+
+    if (existingProject) {
+      return Response.json(
+        { error: "A project with this slug already exists." },
+        { status: 409 }
+      );
+    }
+
+    const result = await env.DB
+      .prepare(
+        `
+        INSERT INTO projects (
+          title,
+          slug,
+          category,
+          client_name,
+          short_description,
+          description,
+          challenge,
+          strategy,
+          execution,
+          results,
+          project_url,
+          project_date,
+          is_featured,
+          is_published,
+          seo_title,
+          seo_description
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `
+      )
+      .bind(
+        title,
+        slug,
+        body.category ?? null,
+        body.client_name ?? null,
+        body.short_description ?? null,
+        body.description ?? null,
+        body.challenge ?? null,
+        body.strategy ?? null,
+        body.execution ?? null,
+        body.results ?? null,
+        body.project_url ?? null,
+        body.project_date ?? null,
+        body.is_featured ? 1 : 0,
+        body.is_published === false ? 0 : 1,
+        body.seo_title ?? null,
+        body.seo_description ?? null
+      )
+      .run();
+
+    return Response.json(
+      {
+        success: true,
+        projectId: result.meta.last_row_id,
+        slug,
+      },
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error("Create project error:", error);
+
+    return Response.json(
+      { error: "Unable to create project." },
+      { status: 500 }
+    );
+  }
+}

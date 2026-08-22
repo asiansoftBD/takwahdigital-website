@@ -1,0 +1,160 @@
+import { notFound } from "next/navigation";
+import Navbar from "@/components/Navbar";
+import {
+  getPublishedProjectBySlug,
+  getProjectMedia,
+} from "@/lib/db";
+
+type ProjectDetailPageProps = {
+  params: Promise<{
+    slug: string;
+  }>;
+};
+
+export default async function ProjectDetailPage({
+  params,
+}: ProjectDetailPageProps) {
+  const { slug } = await params;
+
+  const project = await getPublishedProjectBySlug(slug);
+
+  if (!project) {
+    notFound();
+  }
+  const projectMedia = await getProjectMedia(project.id);
+  return (
+    <>
+      <Navbar />
+
+      <main className="min-h-screen bg-white text-[#0D1A63]">
+        <section className="bg-[#0D1A63] px-6 py-20 text-white lg:px-8">
+          <div className="mx-auto max-w-5xl">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#F68048]">
+              {project.category}
+            </p>
+
+            <h1 className="mt-4 text-4xl font-bold leading-tight sm:text-5xl">
+              {project.title}
+            </h1>
+
+            {project.client_name && (
+              <p className="mt-5 text-lg text-blue-100">
+                Client: {project.client_name}
+              </p>
+            )}
+          </div>
+        </section>
+
+        <section className="px-6 py-16 lg:px-8">
+        
+        {projectMedia.length > 0 && (
+  <div className="mb-10 space-y-6">
+    {projectMedia.map((media) => (
+      <figure
+  key={media.id}
+  className="mx-auto max-w-4xl overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-sm"
+>
+  <div className="flex items-center justify-center p-3 sm:p-5">
+    <img
+      src={`/api/assets?key=${encodeURIComponent(media.storage_key)}`}
+      alt={media.alt_text || project.title}
+      className="h-auto max-h-[650px] w-auto max-w-full object-contain"
+    />
+  </div>
+
+        {media.caption && (
+          <figcaption className="border-t border-slate-200 px-6 py-4 text-sm leading-6 text-slate-600">
+            {media.caption}
+          </figcaption>
+        )}
+      </figure>
+    ))}
+  </div>
+)}
+
+          <div className="mx-auto max-w-5xl">
+            <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm sm:p-10">
+              {project.short_description && (
+                <p className="text-xl leading-8 text-slate-600">
+                  {project.short_description}
+                </p>
+              )}
+
+              {project.description && (
+                <div className="mt-8">
+                  <h2 className="text-2xl font-bold text-[#0D1A63]">
+                    Project Overview
+                  </h2>
+
+                  <p className="mt-4 leading-8 text-slate-600">
+                    {project.description}
+                  </p>
+                </div>
+              )}
+
+              {project.challenge && (
+                <div className="mt-10">
+                  <h2 className="text-2xl font-bold text-[#0D1A63]">
+                    Challenge
+                  </h2>
+
+                  <p className="mt-4 leading-8 text-slate-600">
+                    {project.challenge}
+                  </p>
+                </div>
+              )}
+
+              {project.strategy && (
+                <div className="mt-10">
+                  <h2 className="text-2xl font-bold text-[#0D1A63]">
+                    Strategy
+                  </h2>
+
+                  <p className="mt-4 leading-8 text-slate-600">
+                    {project.strategy}
+                  </p>
+                </div>
+              )}
+
+              {project.execution && (
+                <div className="mt-10">
+                  <h2 className="text-2xl font-bold text-[#0D1A63]">
+                    Execution
+                  </h2>
+
+                  <p className="mt-4 leading-8 text-slate-600">
+                    {project.execution}
+                  </p>
+                </div>
+              )}
+
+              {project.results && (
+                <div className="mt-10">
+                  <h2 className="text-2xl font-bold text-[#0D1A63]">
+                    Results
+                  </h2>
+
+                  <p className="mt-4 leading-8 text-slate-600">
+                    {project.results}
+                  </p>
+                </div>
+              )}
+
+              {project.project_date && (
+                <div className="mt-10 border-t border-slate-200 pt-6">
+                  <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                    Project Date
+                  </p>
+
+                  <p className="mt-2 text-slate-700">
+                    {project.project_date}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      </main>
+    </>
+  );
+}

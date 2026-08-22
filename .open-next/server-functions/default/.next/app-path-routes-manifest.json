@@ -1,0 +1,18 @@
+{
+  "/_global-error/page": "/_global-error",
+  "/_not-found/page": "/_not-found",
+  "/about/page": "/about",
+  "/api/assets/route": "/api/assets",
+  "/api/test-db/route": "/api/test-db",
+  "/articles/[slug]/page": "/articles/[slug]",
+  "/articles/page": "/articles",
+  "/case-studies/[slug]/page": "/case-studies/[slug]",
+  "/case-studies/page": "/case-studies",
+  "/certificates/page": "/certificates",
+  "/contact/page": "/contact",
+  "/favicon.ico/route": "/favicon.ico",
+  "/page": "/",
+  "/portfolio/[slug]/page": "/portfolio/[slug]",
+  "/portfolio/page": "/portfolio",
+  "/services/page": "/services"
+}

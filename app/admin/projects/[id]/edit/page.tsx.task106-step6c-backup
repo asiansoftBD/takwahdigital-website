@@ -1,0 +1,415 @@
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { getCurrentAdmin } from "@/lib/admin-auth";
+
+type Project = {
+  id: number;
+  title: string;
+  slug: string;
+  category: string | null;
+  client_name: string | null;
+  short_description: string | null;
+  description: string | null;
+  challenge: string | null;
+  strategy: string | null;
+  execution: string | null;
+  results: string | null;
+  project_url: string | null;
+  project_date: string | null;
+  is_featured: number;
+  is_published: number;
+  seo_title: string | null;
+  seo_description: string | null;
+};
+
+export default async function EditProjectPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const admin = await getCurrentAdmin();
+
+  if (!admin) {
+    redirect("/admin/login");
+  }
+
+  const { id } = await params;
+  const projectId = Number(id);
+
+  if (!Number.isInteger(projectId) || projectId <= 0) {
+    notFound();
+  }
+
+  const { env } = await getCloudflareContext({
+    async: true,
+  });
+
+  const project = await env.DB
+    .prepare(
+      `
+      SELECT
+        id,
+        title,
+        slug,
+        category,
+        client_name,
+        short_description,
+        description,
+        challenge,
+        strategy,
+        execution,
+        results,
+        project_url,
+        project_date,
+        is_featured,
+        is_published,
+        seo_title,
+        seo_description
+      FROM projects
+      WHERE id = ?
+      LIMIT 1
+      `
+    )
+    .bind(projectId)
+    .first<Project>();
+
+  if (!project) {
+    notFound();
+  }
+
+  return (
+    <main className="min-h-screen bg-slate-50 px-6 py-12 lg:px-8">
+      <div className="mx-auto max-w-5xl">
+        <div className="mb-8">
+          <Link
+            href="/admin/projects"
+            className="text-sm font-semibold text-[#2845D6] hover:underline"
+          >
+            ← Back to Projects
+          </Link>
+
+          <p className="mt-6 text-sm font-semibold uppercase tracking-[0.2em] text-[#F68048]">
+            Takwah Digital CMS
+          </p>
+
+          <h1 className="mt-2 text-3xl font-bold text-[#0D1A63]">
+            Edit Project
+          </h1>
+
+          <p className="mt-2 text-slate-600">
+            Editing project #{project.id}: {project.title}
+          </p>
+        </div>
+          <form
+  action={`/api/admin/projects/${project.id}`}
+  method="POST"
+  className="space-y-8"
+>
+  <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+    <h2 className="text-xl font-bold text-[#0D1A63]">
+      Basic Information
+    </h2>
+
+    <div className="mt-6 grid gap-6 sm:grid-cols-2">
+      <div className="sm:col-span-2">
+        <label
+          htmlFor="title"
+          className="block text-sm font-semibold text-slate-700"
+        >
+          Project Title
+        </label>
+
+        <input
+          id="title"
+          name="title"
+          type="text"
+          required
+          defaultValue={project.title}
+          className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-[#2845D6] focus:ring-2 focus:ring-[#2845D6]/20"
+        />
+      </div>
+
+      <div>
+        <label
+          htmlFor="slug"
+          className="block text-sm font-semibold text-slate-700"
+        >
+          Slug
+        </label>
+
+        <input
+          id="slug"
+          name="slug"
+          type="text"
+          required
+          defaultValue={project.slug}
+          className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-[#2845D6] focus:ring-2 focus:ring-[#2845D6]/20"
+        />
+      </div>
+
+      <div>
+        <label
+          htmlFor="category"
+          className="block text-sm font-semibold text-slate-700"
+        >
+          Category
+        </label>
+
+        <input
+          id="category"
+          name="category"
+          type="text"
+          defaultValue={project.category ?? ""}
+          className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-[#2845D6] focus:ring-2 focus:ring-[#2845D6]/20"
+        />
+      </div>
+
+      <div>
+        <label
+          htmlFor="client_name"
+          className="block text-sm font-semibold text-slate-700"
+        >
+          Client Name
+        </label>
+
+        <input
+          id="client_name"
+          name="client_name"
+          type="text"
+          defaultValue={project.client_name ?? ""}
+          className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-[#2845D6] focus:ring-2 focus:ring-[#2845D6]/20"
+        />
+      </div>
+
+      <div>
+        <label
+          htmlFor="project_date"
+          className="block text-sm font-semibold text-slate-700"
+        >
+          Project Date
+        </label>
+
+        <input
+          id="project_date"
+          name="project_date"
+          type="date"
+          defaultValue={project.project_date ?? ""}
+          className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-[#2845D6] focus:ring-2 focus:ring-[#2845D6]/20"
+        />
+      </div>
+
+      <div className="sm:col-span-2">
+        <label
+          htmlFor="short_description"
+          className="block text-sm font-semibold text-slate-700"
+        >
+          Short Description
+        </label>
+
+        <textarea
+          id="short_description"
+          name="short_description"
+          rows={3}
+          defaultValue={project.short_description ?? ""}
+          className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-[#2845D6] focus:ring-2 focus:ring-[#2845D6]/20"
+        />
+      </div>
+
+      <div className="sm:col-span-2">
+        <label
+          htmlFor="description"
+          className="block text-sm font-semibold text-slate-700"
+        >
+          Full Description
+        </label>
+
+        <textarea
+          id="description"
+          name="description"
+          rows={6}
+          defaultValue={project.description ?? ""}
+          className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-[#2845D6] focus:ring-2 focus:ring-[#2845D6]/20"
+        />
+      </div>
+    </div>
+  </section>
+
+  <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+    <h2 className="text-xl font-bold text-[#0D1A63]">
+      Case Study Details
+    </h2>
+
+    <div className="mt-6 space-y-6">
+      <div>
+        <label
+          htmlFor="challenge"
+          className="block text-sm font-semibold text-slate-700"
+        >
+          Challenge
+        </label>
+
+        <textarea
+          id="challenge"
+          name="challenge"
+          rows={4}
+          defaultValue={project.challenge ?? ""}
+          className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-[#2845D6] focus:ring-2 focus:ring-[#2845D6]/20"
+        />
+      </div>
+
+      <div>
+        <label
+          htmlFor="strategy"
+          className="block text-sm font-semibold text-slate-700"
+        >
+          Strategy
+        </label>
+
+        <textarea
+          id="strategy"
+          name="strategy"
+          rows={4}
+          defaultValue={project.strategy ?? ""}
+          className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-[#2845D6] focus:ring-2 focus:ring-[#2845D6]/20"
+        />
+      </div>
+
+      <div>
+        <label
+          htmlFor="execution"
+          className="block text-sm font-semibold text-slate-700"
+        >
+          Execution
+        </label>
+
+        <textarea
+          id="execution"
+          name="execution"
+          rows={4}
+          defaultValue={project.execution ?? ""}
+          className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-[#2845D6] focus:ring-2 focus:ring-[#2845D6]/20"
+        />
+      </div>
+
+      <div>
+        <label
+          htmlFor="results"
+          className="block text-sm font-semibold text-slate-700"
+        >
+          Results
+        </label>
+
+        <textarea
+          id="results"
+          name="results"
+          rows={4}
+          defaultValue={project.results ?? ""}
+          className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-[#2845D6] focus:ring-2 focus:ring-[#2845D6]/20"
+        />
+      </div>
+    </div>
+  </section>
+
+  <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+    <h2 className="text-xl font-bold text-[#0D1A63]">
+      SEO & Publishing
+    </h2>
+
+    <div className="mt-6 grid gap-6">
+      <div>
+        <label
+          htmlFor="project_url"
+          className="block text-sm font-semibold text-slate-700"
+        >
+          Project URL
+        </label>
+
+        <input
+          id="project_url"
+          name="project_url"
+          type="url"
+          defaultValue={project.project_url ?? ""}
+          className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-[#2845D6] focus:ring-2 focus:ring-[#2845D6]/20"
+        />
+      </div>
+
+      <div>
+        <label
+          htmlFor="seo_title"
+          className="block text-sm font-semibold text-slate-700"
+        >
+          SEO Title
+        </label>
+
+        <input
+          id="seo_title"
+          name="seo_title"
+          type="text"
+          defaultValue={project.seo_title ?? ""}
+          className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-[#2845D6] focus:ring-2 focus:ring-[#2845D6]/20"
+        />
+      </div>
+
+      <div>
+        <label
+          htmlFor="seo_description"
+          className="block text-sm font-semibold text-slate-700"
+        >
+          SEO Description
+        </label>
+
+        <textarea
+          id="seo_description"
+          name="seo_description"
+          rows={3}
+          defaultValue={project.seo_description ?? ""}
+          className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-[#2845D6] focus:ring-2 focus:ring-[#2845D6]/20"
+        />
+      </div>
+
+      <div className="flex flex-col gap-4 sm:flex-row sm:gap-8">
+        <label className="flex items-center gap-3 text-sm font-semibold text-slate-700">
+          <input
+            type="checkbox"
+            name="is_published"
+            defaultChecked={project.is_published === 1}
+            className="h-4 w-4 rounded border-slate-300"
+          />
+          Publish this project
+        </label>
+
+        <label className="flex items-center gap-3 text-sm font-semibold text-slate-700">
+          <input
+            type="checkbox"
+            name="is_featured"
+            defaultChecked={project.is_featured === 1}
+            className="h-4 w-4 rounded border-slate-300"
+          />
+          Mark as featured
+        </label>
+      </div>
+    </div>
+  </section>
+
+  <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+    <Link
+      href="/admin/projects"
+      className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50"
+    >
+      Cancel
+    </Link>
+
+    <button
+      type="submit"
+      className="inline-flex items-center justify-center rounded-lg bg-[#2845D6] px-6 py-3 font-semibold text-white hover:bg-[#1A2CA3]"
+    >
+      Save Changes
+    </button>
+  </div>
+</form>
+        
+      </div>
+    </main>
+  );
+}

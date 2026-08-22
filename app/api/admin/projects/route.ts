@@ -1,0 +1,397 @@
+import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { getCurrentAdmin } from "@/lib/admin-auth";
+
+function createSlug(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+export async function POST(request: Request) {
+  try {
+    const admin = await getCurrentAdmin();
+
+    if (!admin) {
+      return Response.json(
+        { error: "Unauthorized." },
+        { status: 401 }
+      );
+    }
+
+    const body = (await request.json()) as {
+  title?: string;
+  slug?: string;
+  category?: string | null;
+  client_name?: string | null;
+  short_description?: string | null;
+  description?: string | null;
+  challenge?: string | null;
+  strategy?: string | null;
+  execution?: string | null;
+  results?: string | null;
+  project_url?: string | null;
+  project_date?: string | null;
+  is_featured?: boolean;
+  is_published?: boolean;
+  seo_title?: string | null;
+  seo_description?: string | null;
+};
+
+    const title = String(body.title ?? "").trim();
+
+    if (!title) {
+      return Response.json(
+        { error: "Project title is required." },
+        { status: 400 }
+      );
+    }
+
+    const slug = createSlug(
+      String(body.slug ?? title)
+    );
+
+    if (!slug) {
+      return Response.json(
+        { error: "A valid project slug is required." },
+        { status: 400 }
+      );
+    }
+
+    const { env } = await getCloudflareContext({
+      async: true,
+    });
+
+    const existingProject = await env.DB
+      .prepare(
+        `
+        SELECT id
+        FROM projects
+        WHERE slug = ?
+        LIMIT 1
+        `
+      )
+      .bind(slug)
+      .first<{ id: number }>();
+
+    if (existingProject) {
+      return Response.json(
+        { error: "A project with this slug already exists." },
+        { status: 409 }
+      );
+    }
+
+    const result = await env.DB
+      .prepare(
+        `
+        INSERT INTO projects (
+          title,
+          slug,
+          category,
+          client_name,
+          short_description,
+          description,
+          challenge,
+          strategy,
+          execution,
+          results,
+          project_url,
+          project_date,
+          is_featured,
+          is_published,
+          seo_title,
+          seo_description
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `
+      )
+      .bind(
+        title,
+        slug,
+        body.category ?? null,
+        body.client_name ?? null,
+        body.short_description ?? null,
+        body.description ?? null,
+        body.challenge ?? null,
+        body.strategy ?? null,
+        body.execution ?? null,
+        body.results ?? null,
+        body.project_url ?? null,
+        body.project_date ?? null,
+        body.is_featured ? 1 : 0,
+        body.is_published === false ? 0 : 1,
+        body.seo_title ?? null,
+        body.seo_description ?? null
+      )
+      .run();
+
+    return Response.json(
+      {
+        success: true,
+        projectId: result.meta.last_row_id,
+        slug,
+      },
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error("Create project error:", error);
+
+    return Response.json(
+      { error: "Unable to create project." },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(request: Request) {
+  try {
+    const admin = await getCurrentAdmin();
+
+    if (!admin) {
+      return Response.json(
+        { error: "Unauthorized." },
+        { status: 401 }
+      );
+    }
+
+    const body = (await request.json()) as {
+      id?: number;
+      title?: string;
+      slug?: string;
+      category?: string | null;
+      client_name?: string | null;
+      short_description?: string | null;
+      description?: string | null;
+      challenge?: string | null;
+      strategy?: string | null;
+      execution?: string | null;
+      results?: string | null;
+      project_url?: string | null;
+      project_date?: string | null;
+      is_featured?: boolean;
+      is_published?: boolean;
+      seo_title?: string | null;
+      seo_description?: string | null;
+    };
+
+    const projectId = Number(body.id);
+
+    if (!Number.isInteger(projectId) || projectId <= 0) {
+      return Response.json(
+        { error: "A valid project ID is required." },
+        { status: 400 }
+      );
+    }
+
+    const title = String(body.title ?? "").trim();
+
+    if (!title) {
+      return Response.json(
+        { error: "Project title is required." },
+        { status: 400 }
+      );
+    }
+
+    const slug = createSlug(
+      String(body.slug ?? title)
+    );
+
+    if (!slug) {
+      return Response.json(
+        { error: "A valid project slug is required." },
+        { status: 400 }
+      );
+    }
+
+    const { env } = await getCloudflareContext({
+      async: true,
+    });
+
+    const project = await env.DB
+      .prepare(
+        `
+        SELECT id
+        FROM projects
+        WHERE id = ?
+        LIMIT 1
+        `
+      )
+      .bind(projectId)
+      .first<{ id: number }>();
+
+    if (!project) {
+      return Response.json(
+        { error: "Project not found." },
+        { status: 404 }
+      );
+    }
+
+    const existingProject = await env.DB
+      .prepare(
+        `
+        SELECT id
+        FROM projects
+        WHERE slug = ?
+          AND id != ?
+        LIMIT 1
+        `
+      )
+      .bind(slug, projectId)
+      .first<{ id: number }>();
+
+    if (existingProject) {
+      return Response.json(
+        { error: "A project with this slug already exists." },
+        { status: 409 }
+      );
+    }
+
+    await env.DB
+      .prepare(
+        `
+        UPDATE projects
+        SET
+          title = ?,
+          slug = ?,
+          category = ?,
+          client_name = ?,
+          short_description = ?,
+          description = ?,
+          challenge = ?,
+          strategy = ?,
+          execution = ?,
+          results = ?,
+          project_url = ?,
+          project_date = ?,
+          is_featured = ?,
+          is_published = ?,
+          seo_title = ?,
+          seo_description = ?
+        WHERE id = ?
+        `
+      )
+      .bind(
+        title,
+        slug,
+        body.category ?? null,
+        body.client_name ?? null,
+        body.short_description ?? null,
+        body.description ?? null,
+        body.challenge ?? null,
+        body.strategy ?? null,
+        body.execution ?? null,
+        body.results ?? null,
+        body.project_url ?? null,
+        body.project_date ?? null,
+        body.is_featured ? 1 : 0,
+        body.is_published ? 1 : 0,
+        body.seo_title ?? null,
+        body.seo_description ?? null,
+        projectId
+      )
+      .run();
+
+    return Response.json({
+      success: true,
+      projectId,
+      slug,
+    });
+  } catch (error) {
+    console.error("Update project error:", error);
+
+    return Response.json(
+      { error: "Unable to update project." },
+      { status: 500 }
+    );
+  }
+}
+export async function DELETE(request: Request) {
+  try {
+    const admin = await getCurrentAdmin();
+
+    if (!admin) {
+      return Response.json(
+        { error: "Unauthorized." },
+        { status: 401 }
+      );
+    }
+
+    const body = (await request.json()) as {
+      id?: number;
+    };
+
+    const projectId = Number(body.id);
+
+    if (!Number.isInteger(projectId) || projectId <= 0) {
+      return Response.json(
+        { error: "A valid project ID is required." },
+        { status: 400 }
+      );
+    }
+
+    const { env } = await getCloudflareContext({
+      async: true,
+    });
+
+    const project = await env.DB
+      .prepare(
+        `
+        SELECT id
+        FROM projects
+        WHERE id = ?
+        LIMIT 1
+        `
+      )
+      .bind(projectId)
+      .first<{ id: number }>();
+
+    if (!project) {
+      return Response.json(
+        { error: "Project not found." },
+        { status: 404 }
+      );
+    }
+
+    const media = await env.DB
+      .prepare(
+        `
+        SELECT m.id, m.storage_key
+        FROM media m
+        INNER JOIN project_media pm
+          ON pm.media_id = m.id
+        WHERE pm.project_id = ?
+        `
+      )
+      .bind(projectId)
+      .all<{ id: number; storage_key: string }>();
+
+    for (const item of media.results) {
+      if (item.storage_key) {
+        await env.TAKWAH_ASSETS.delete(item.storage_key);
+      }
+    }
+
+    await env.DB
+      .prepare(
+        `
+        DELETE FROM projects
+        WHERE id = ?
+        `
+      )
+      .bind(projectId)
+      .run();
+
+    return Response.json({
+      success: true,
+      projectId,
+    });
+  } catch (error) {
+    console.error("Delete project error:", error);
+
+    return Response.json(
+      { error: "Unable to delete project." },
+      { status: 500 }
+    );
+  }
+}
